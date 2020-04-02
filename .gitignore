@@ -5,3 +5,6 @@ config.toml
 # Exclude executable
 duit
 duit-dev
+
+# Exclude node_modules
+node_modules

@@ -1,0 +1,50 @@
+version: 2 
+jobs: 
+    deploy_backend: 
+        docker:
+            - image: circleci/golang:1.13
+
+        steps: 
+            - checkout 
+      
+            - restore_cache: 
+                keys:
+                    - v1-pkg-cache
+
+            - run: go get 
+
+            - run: CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -tags prod -o duit main.go
+
+            - save_cache: # Store cache in the /go/pkg directory
+                key: v1-pkg-cache
+                paths:
+                    - "/go/pkg"
+
+            - run:
+                name: Secure copy app
+                command: scp -o StrictHostKeyChecking=no duit cicd@${SERVER_ADDRESS}:~/
+        
+            - run:
+                name: Run DB Migrations
+                command: echo "Run DB Migrations"
+
+            - run:
+                name: Restart nginx server
+                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "systemctl restart duit.service"
+            
+            - run:
+                name: Restart nginx server
+                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "systemctl enable duit.service"
+
+            - run:
+                name: Check duit is running
+                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "systemctl is-active --quiet duit.service"
+
+workflows:
+    version: 2
+    deployment:
+        jobs:
+        - deploy_backend:
+            filters:
+                branches:
+                only: deployment
