@@ -30,15 +30,15 @@ jobs:
 
             - run:
                 name: Restart nginx server
-                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "systemctl restart duit.service"
+                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl restart duit.service"
             
             - run:
                 name: Restart nginx server
-                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "systemctl enable duit.service"
+                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl enable duit.service"
 
             - run:
                 name: Check duit is running
-                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "systemctl is-active --quiet duit.service"
+                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl is-active --quiet duit.service"
 
 workflows:
     version: 2
