@@ -1,4 +1,6 @@
-version: 2 
+version: 2.1
+orbs:
+    node: circleci/node@2.0.1
 jobs: 
     deploy_backend: 
         docker:
@@ -6,6 +8,9 @@ jobs:
 
         steps: 
             - checkout 
+            - node/install:
+                install-npm: true
+                node-version: latest
       
             - restore_cache: 
                 keys:
@@ -17,19 +22,35 @@ jobs:
             
             - run:
                 name: "Convert less -> css"
-                command: echo "TODO Convert less -> css"
+                command: >
+                    sudo npm install less -g; find "$PWD" -name '*.less' | while read line; do
+                        REPLACE_EXT=`echo $line | sed "s|\.less|\.css|"`
+                        REPLACE_PATH=`echo $REPLACE_EXT | sed "s|\/less|\/css|"`
+                        echo "$line --> $REPLACE_PATH"
+                        (lessc "$line" "$REPLACE_PATH")
+                    done
             
             - run:
-                name: "min jss"
-                command: echo "TODO Min jss"
+                name: "min js"
+                command: >
+                    sudo npm install uglify-es -g;
+                    find "$PWD/internal/view" -name '*.js' | while read line; do
+                        if [[ $(basename "$line") == *.min.js ]]; then 
+                            continue;
+                        else 
+                            NEW_NAME=`echo $line | sed "s|\.js|\.min.js|"`
+                            echo "$line -> $NEW_NAME"
+                            (uglifyjs -o "$NEW_NAME" "$line")
+                        fi
+                    done
 
             - run:
                 name: "Generate Go code"
-                command: "go generate"
+                command: "go generate -v -tags prod"
 
             - run: 
                 name: "Build New Binary"
-                command: CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o duit main.go
+                command: CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o duit -tags prod main.go
 
             - save_cache: # Store cache in the /go/pkg directory
                 key: v1-pkg-cache
