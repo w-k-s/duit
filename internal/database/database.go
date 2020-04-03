@@ -57,10 +57,9 @@ func Open(config model.Config) (db *sqlx.DB, err error) {
 	tx.MustExec(ddlCreateCategory)
 	tx.MustExec(ddlCreateEntry)
 
-	// temp comment out because not working on mariadb 10.1
 	// Generate views
-	//tx.MustExec(ddlCreateViewAccountTotal)
-	//tx.MustExec(ddlCreateViewCumulativeAmount)
+	tx.MustExec(ddlCreateViewAccountTotal)
+	tx.MustExec(ddlCreateViewCumulativeAmount)
 
 	// Upgrade table
 	tx.MustExec(ddlUpgradeUserAddAdmin)

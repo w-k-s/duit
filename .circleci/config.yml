@@ -29,11 +29,11 @@ jobs:
                 command: echo "Run DB Migrations"
 
             - run:
-                name: Restart nginx server
+                name: Restart Duit Service
                 command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl restart duit.service"
             
             - run:
-                name: Restart nginx server
+                name: Enable Systemd on Duit
                 command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl enable duit.service"
 
             - run:
