@@ -11,9 +11,17 @@ jobs:
                 keys:
                     - v1-pkg-cache
 
-            - run: go get 
+            - run: 
+                new: "Fetch Dependencies"
+                command: go get 
 
-            - run: CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -tags prod -o duit main.go
+            - run:
+                name: "Generate Go code"
+                command: "go generate"
+
+            - run: 
+                name: "Build New Binary"
+                command: CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -tags prod -o duit main.go
 
             - save_cache: # Store cache in the /go/pkg directory
                 key: v1-pkg-cache
@@ -24,7 +32,6 @@ jobs:
                 name: Stop Duit Service
                 command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl stop duit.service"
         
-
             - run:
                 name: Secure copy app
                 command: scp -o StrictHostKeyChecking=no duit cicd@${SERVER_ADDRESS}:~/
