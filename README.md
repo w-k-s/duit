@@ -77,3 +77,30 @@ Original logo is created by [Freepik](https://www.flaticon.com/authors/freepik) 
 ## License
 
 Duit is distributed using [MIT license](https://choosealicense.com/licenses/mit/), which means you can use and modify it however you want. However, if you make an enhancement for it, if possible, please send a pull request. If you like this project, please consider donating to me either via [PayPal](https://www.paypal.me/RadhiFadlillah) or [Ko-Fi](https://ko-fi.com/radhifadlillah).
+
+## System.d Config
+
+/etc/systemd/system/duit.service
+
+```
+[Unit]
+Description=duit service      
+After=mariadb.service
+StartLimitIntervalSec=0
+
+[Socket]
+ListenStream=8080
+NoDelay=true
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=1
+User=cicd
+Group=cicd
+ExecStart=/home/cicd/duit -p 8080                     
+WorkingDirectory=/home/cicd
+
+[Install]
+WantedBy=multi-user.target 
+```

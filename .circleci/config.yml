@@ -21,6 +21,11 @@ jobs:
                     - "/go/pkg"
 
             - run:
+                name: Stop Duit Service
+                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl stop duit.service"
+        
+
+            - run:
                 name: Secure copy app
                 command: scp -o StrictHostKeyChecking=no duit cicd@${SERVER_ADDRESS}:~/
         
@@ -30,7 +35,7 @@ jobs:
 
             - run:
                 name: Restart Duit Service
-                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl restart duit.service"
+                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl start duit.service"
             
             - run:
                 name: Enable Systemd on Duit
