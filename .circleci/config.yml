@@ -12,8 +12,16 @@ jobs:
                     - v1-pkg-cache
 
             - run: 
-                new: "Fetch Dependencies"
+                name: "Fetch Dependencies"
                 command: go get 
+            
+            - run:
+                name: "Convert less -> css"
+                command: echo "TODO Convert less -> css"
+            
+            - run:
+                name: "min jss"
+                command: echo "TODO Min jss"
 
             - run:
                 name: "Generate Go code"
@@ -21,7 +29,7 @@ jobs:
 
             - run: 
                 name: "Build New Binary"
-                command: CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -tags prod -o duit main.go
+                command: CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o duit main.go
 
             - save_cache: # Store cache in the /go/pkg directory
                 key: v1-pkg-cache
