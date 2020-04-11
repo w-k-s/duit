@@ -334,6 +334,7 @@ func (h *Handler) ImportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 		entryType := 1 // Income
 		if amount.IsNegative() {
 			entryType = 2 // Expense
+			amount = amount.Abs()
 		}
 
 		date := ""
@@ -411,7 +412,7 @@ func (h *Handler) ExportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 		SELECT e.id, e.account_id, e.affected_account_id,
 			e.type, e.description, e.amount, e.date
 		FROM entry e
-		WHERE e.account_id = ?
+		WHERE e.account_id = ? 
 		OR e.affected_account_id = ?
 		ORDER BY e.date DESC, e.id DESC`)
 	checkError(err)
@@ -427,6 +428,9 @@ func (h *Handler) ExportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 
 	csvWriter.Write([]string{"Date", "Amount", "Description"})
 	for _, entry := range entries {
+		if entry.Type == 2 {
+			entry.Amount = entry.Amount.Neg()
+		}
 		csvWriter.Write([]string{entry.Date, entry.Amount.String(), entry.Description.ValueOrZero()})
 	}
 	csvWriter.Flush()

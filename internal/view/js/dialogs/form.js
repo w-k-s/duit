@@ -77,6 +77,7 @@ export function DialogForm() {
 				case "date":
 				case "boolean":
 				case "select":
+				case "file":
 				case "textarea": break
 				default: return
 			}
@@ -162,6 +163,15 @@ export function DialogForm() {
 						oninput(e) { formData[name] = e.target.value }
 					}, optionNodes)
 					break
+				case "file":
+					inputNode = m("input.dialog__form__input", {
+						type: "file",
+						class: inputClass,
+						placeholder: placeholder,
+						disabled: disabled,
+						oninput(e) { formData[name] = e.target.files[0] }
+					})
+					break
 				case "textarea":
 					inputNode = m("textarea.dialog__form__textarea", {
 						class: inputClass,
@@ -235,6 +245,10 @@ export function DialogForm() {
 
 					if (fieldType === "boolean") {
 						finalData[key] = Boolean(finalValue)
+					}
+
+					if (fieldType === "file") {
+						finalData[key] = formData[key]
 					}
 				}
 

@@ -152,6 +152,12 @@ export default new Map([
 	["Description", "Deskripsi"],
 	["Target", "Tujuan"],
 
+	// Import/Export
+	["Import Entries"]
+	["Upload CSV"],
+	["Export Entries"],
+	["Download CSV"],
+
 	// Form Password
 	["Old password", "Password lama"],
 	["New password", "Password baru"],
