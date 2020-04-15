@@ -22,6 +22,7 @@ type Config struct {
 
 // Category is container for expense's category
 type Category struct {
+	ID        int64  `db:"id"         json:"-"`
 	AccountID int64  `db:"account_id" json:"-"`
 	Name      string `db:"name"       json:"name"`
 	Type      int    `db:"type"       json:"type"`

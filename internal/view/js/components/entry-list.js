@@ -71,6 +71,8 @@ export function EntryList() {
 			onNewClicked = vnode.attrs.onNewClicked,
 			onEditClicked = vnode.attrs.onEditClicked,
 			onDeleteClicked = vnode.attrs.onDeleteClicked,
+			onImportClicked = vnode.attrs.onImportClicked,
+			onExportClicked = vnode.attrs.onExportClicked,
 			onBackClicked = vnode.attrs.onBackClicked,
 			onPageChanged = vnode.attrs.onPageChanged
 
@@ -84,6 +86,8 @@ export function EntryList() {
 		if (typeof onNewClicked != "function") onNewClicked = () => { }
 		if (typeof onEditClicked != "function") onEditClicked = () => { }
 		if (typeof onDeleteClicked != "function") onDeleteClicked = () => { }
+		if (typeof onImportClicked != "function") onImportClicked = () => { }
+		if (typeof onExportClicked != "function") onExportClicked = () => { }
 		if (typeof onBackClicked != "function") onBackClicked = () => { }
 		if (typeof onPageChanged != "function") onPageChanged = () => { }
 
@@ -123,6 +127,18 @@ export function EntryList() {
 				onclick() { onDeleteClicked() }
 			}))
 		)
+
+		headerContents.push(m(Button, mergeObject(headerButtonAttrs, {
+			icon: "fa-upload",
+			caption: i18n("Import"),
+			onclick() { onImportClicked() }
+		})))
+
+		headerContents.push(m(Button, mergeObject(headerButtonAttrs, {
+			icon: "fa-download",
+			caption: i18n("Export"),
+			onclick() { onExportClicked() }
+		})))
 
 		headerContents.push(m(Button, mergeObject(headerButtonAttrs, {
 			icon: "fa-plus-circle",

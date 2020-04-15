@@ -10,6 +10,8 @@ import {
 	DialogFormAccount,
 	DialogEntryType,
 	DialogFormEntry,
+	DialogImportEntries,
+	DialogExportEntries,
 } from "../dialogs/_dialogs.min.js"
 
 import {
@@ -49,6 +51,9 @@ export function HomePage() {
 		dlgNewAccount: { visible: false, loading: false },
 		dlgEditAccount: { visible: false, loading: false },
 		dlgDeleteAccount: { visible: false, loading: false },
+
+		dlgImportEntries: { visible: false, loading: false },
+		dlgExportEntries: { visible: false, loading: false },
 
 		dlgEntryType: { visible: false },
 		dlgNewEntry: { visible: false, loading: false, type: 0 },
@@ -481,6 +486,53 @@ export function HomePage() {
 			})
 	}
 
+	function importEntries(data) {
+		if (state.activeAccount == null) return
+
+		state.loading = true
+		state.dlgImportEntries.loading = true
+		m.redraw()
+
+		const formData = new FormData();
+		formData.append('import', data['import']);
+		formData.append("accountID", state.activeAccount.id)
+
+		const options = {
+			method: 'POST',
+			body: formData,
+		};
+		  
+		request("/api/entry/import", timeoutDuration, options)
+			.then(entries => {
+				// Update list
+				loadEntries();
+			})
+			.catch(err => {
+				state.dlgError.message = err.message
+				state.dlgError.visible = true
+			})
+			.finally(() => {
+				state.loading = false
+				state.dlgImportEntries.loading = false
+				state.dlgImportEntries.visible = false
+				m.redraw()
+			})
+	}
+
+	function exportEntries(data) {
+		if (state.activeAccount == null) return
+
+		let url = new URL("/api/entry/export", document.baseURI)
+		url.searchParams.set("account", state.activeAccount.id)
+		url.searchParams.set("fromDate", data.fromDate)
+		url.searchParams.set("toDate", data.toDate)
+
+		window.open(url.toString())
+
+		state.dlgExportEntries.visible = false
+		m.redraw()
+	}
+
 	// Render view
 	function renderView(vnode) {
 		// Prepare dialogs
@@ -609,6 +661,34 @@ export function HomePage() {
 			}))
 		}
 
+		if (dialogs.length === 0 && state.dlgImportEntries.visible) {
+			let message = i18n("Upload CSV")
+
+			dialogs.push(m(DialogImportEntries, {
+				title: i18n("Import Entries"),
+				message: message,
+				acceptText: i18n("OK"),
+				rejectText: i18n("Cancel"),
+				loading: state.dlgImportEntries.loading,
+				onAccepted(data) { importEntries(data) },
+				onRejected() { state.dlgImportEntries.visible = false }
+			}))
+		}
+
+		if (dialogs.length === 0 && state.dlgExportEntries.visible) {
+			let message = i18n("Download CSV")
+
+			dialogs.push(m(DialogExportEntries, {
+				title: i18n("Export Entries"),
+				message: message,
+				acceptText: i18n("OK"),
+				rejectText: i18n("Cancel"),
+				loading: state.dlgExportEntries.loading,
+				onAccepted(data) { exportEntries(data) },
+				onRejected() { state.dlgExportEntries.visible = false }
+			}))
+		}
+
 		// Prepare loading cover
 		let covers = []
 
@@ -650,6 +730,8 @@ export function HomePage() {
 				maxPage: state.pagination.maxPage,
 				onNewClicked() { state.dlgEntryType.visible = true },
 				onEditClicked() { state.dlgEditEntry.visible = true },
+				onImportClicked() { state.dlgImportEntries.visible = true },
+				onExportClicked() { state.dlgExportEntries.visible = true },
 				onDeleteClicked() { state.dlgDeleteEntry.visible = true },
 				onBackClicked() { state.activeAccount = null },
 				onPageChanged(page) {
