@@ -66,31 +66,33 @@ export function EntryList() {
 			loading = vnode.attrs.loading,
 			className = vnode.attrs.class,
 			selection = vnode.attrs.selection,
-			currentPage = vnode.attrs.currentPage,
-			maxPage = vnode.attrs.maxPage,
+			selectedMonth = vnode.attrs.selectedMonth,
+			selectedYear = vnode.attrs.selectedYear,
 			onNewClicked = vnode.attrs.onNewClicked,
 			onEditClicked = vnode.attrs.onEditClicked,
 			onDeleteClicked = vnode.attrs.onDeleteClicked,
 			onImportClicked = vnode.attrs.onImportClicked,
 			onExportClicked = vnode.attrs.onExportClicked,
 			onBackClicked = vnode.attrs.onBackClicked,
-			onPageChanged = vnode.attrs.onPageChanged
+			onMonthChanged = vnode.attrs.onMonthChanged,
+			onYearChanged = vnode.attrs.onYearChanged
 
 		if (typeof account != "object") account = {}
 		if (!Array.isArray(entries)) entries = []
 		if (typeof loading != "boolean") loading = false
 		if (typeof className != "string") className = ""
 		if (!Array.isArray(selection)) selection = []
-		if (typeof currentPage != "number") currentPage = 1
-		if (typeof maxPage != "number") maxPage = 1
+		if (typeof selectedMonth != "number") selectedMonth = new Date().getMonth() + 1
+		if (typeof selectedYear != "number") selectedYear = new Date().getFullYear()
 		if (typeof onNewClicked != "function") onNewClicked = () => { }
 		if (typeof onEditClicked != "function") onEditClicked = () => { }
 		if (typeof onDeleteClicked != "function") onDeleteClicked = () => { }
 		if (typeof onImportClicked != "function") onImportClicked = () => { }
 		if (typeof onExportClicked != "function") onExportClicked = () => { }
 		if (typeof onBackClicked != "function") onBackClicked = () => { }
-		if (typeof onPageChanged != "function") onPageChanged = () => { }
-
+		if (typeof onMonthChanged != "function") onMonthChanged = () => { }
+		if (typeof onYearChanged != "function") onYearChanged = () => { }
+		
 		// Render header
 		let title = i18n("Entry List")
 		if (account != null) {
@@ -237,10 +239,8 @@ export function EntryList() {
 			}
 
 			let paginationEnabled = {
-				first: !loading && currentPage > 2,
-				prev: !loading && currentPage > 1,
-				next: !loading && currentPage < maxPage,
-				last: !loading && currentPage < maxPage - 1,
+				year: !loading,
+				month: !loading,
 			}
 
 			footer.push(m(".entry-list__footer",
@@ -251,31 +251,40 @@ export function EntryList() {
 					onclick() { onBackClicked() }
 				}),
 				m(".entry-list__footer__spacer"),
-				m(Button, mergeObject(attrs, {
-					icon: "fa-angle-double-left",
-					caption: i18n("First page"),
-					enabled: paginationEnabled.first,
-					onclick() { onPageChanged(1) }
-				})),
-				m(Button, mergeObject(attrs, {
-					icon: "fa-angle-left",
-					caption: i18n("Previous page"),
-					enabled: paginationEnabled.prev,
-					onclick() { onPageChanged(currentPage - 1) }
-				})),
-				m("p.entry-list__footer__page", `${currentPage} / ${maxPage}`),
-				m(Button, mergeObject(attrs, {
-					icon: "fa-angle-right",
-					caption: i18n("Next page"),
-					enabled: paginationEnabled.next,
-					onclick() { onPageChanged(currentPage + 1) }
-				})),
-				m(Button, mergeObject(attrs, {
-					icon: "fa-angle-double-right",
-					caption: i18n("Last page"),
-					enabled: paginationEnabled.last,
-					onclick() { onPageChanged(maxPage) }
-				}))
+				m('select[name=month]',{
+					value: selectedMonth,
+					onchange: (i)=>{
+						onMonthChanged(parseInt(i.target.value));
+					}
+				}, [
+				  m('option[value=1]', 'January'),
+				  m('option[value=2]', 'February'),
+				  m('option[value=3]', 'March'),
+				  m('option[value=4]', 'April'),
+				  m('option[value=5]', 'May'),
+				  m('option[value=6]', 'June'),
+				  m('option[value=7]', 'July'),
+				  m('option[value=8]', 'August'),
+				  m('option[value=9]', 'September'),
+				  m('option[value=10]', 'October'),
+				  m('option[value=11]', 'November'),
+				  m('option[value=12]', 'December')
+				]),
+				m('select[name=year]',{
+					value: selectedYear,
+					onchange: (i) =>{
+						onYearChanged(parseInt(i.target.value));
+					}
+				},(()=>{
+					let to = new Date().getFullYear();
+					let from = to - 20;
+					let years = [];
+					for(let i = to; i>=from; i--){
+						years.push(m(`option[value=${i}]`, `${i}`));
+					}
+
+					return years;
+				})())
 			))
 		}
 

@@ -39,9 +39,9 @@ export function HomePage() {
 		entries: [],
 		selectedEntries: [],
 		entriesLoading: false,
-		pagination: {
-			page: 1,
-			maxPage: 1,
+		date: {
+			selectedMonth: new Date().getMonth() + 1,
+			selectedYear: new Date().getFullYear(),
 		},
 
 		categories: [],
@@ -266,15 +266,14 @@ export function HomePage() {
 		m.redraw()
 
 		let url = new URL("/api/entries", document.baseURI)
-		url.searchParams.set("page", state.pagination.page)
+		url.searchParams.set("month", state.date.selectedMonth)
+		url.searchParams.set("year", state.date.selectedYear)
 		url.searchParams.set("account", state.activeAccount.id)
 
 		request(url.toString(), timeoutDuration)
 			.then(json => {
 				state.entries = json.entries
 				state.selectedEntries = []
-				state.pagination.page = json.page
-				state.pagination.maxPage = json.maxPage
 			})
 			.catch(err => {
 				state.dlgError.message = err.message
@@ -711,8 +710,8 @@ export function HomePage() {
 				let activeAccount = state.activeAccount || {}
 				if (account.id !== activeAccount.id) {
 					state.activeAccount = account
-					state.pagination.maxPage = 1
-					state.pagination.page = 1
+					state.date.selectedMonth = new Date().getMonth() + 1;
+					state.date.selectedYear = new Date().getFullYear();
 
 					loadCategories(account)
 				}
@@ -726,18 +725,24 @@ export function HomePage() {
 				account: state.activeAccount,
 				entries: state.entries,
 				selection: state.selectedEntries,
-				currentPage: state.pagination.page,
-				maxPage: state.pagination.maxPage,
+				selectedMonth: state.date.selectedMonth,
+				selectedYear: state.date.selectedYear,
 				onNewClicked() { state.dlgEntryType.visible = true },
 				onEditClicked() { state.dlgEditEntry.visible = true },
 				onImportClicked() { state.dlgImportEntries.visible = true },
 				onExportClicked() { state.dlgExportEntries.visible = true },
 				onDeleteClicked() { state.dlgDeleteEntry.visible = true },
 				onBackClicked() { state.activeAccount = null },
-				onPageChanged(page) {
-					state.pagination.page = page
-					loadEntries()
+				onMonthChanged(month){
+					state.date.selectedMonth = month;
+					console.log(`${state.date.selectedMonth} ${state.date.selectedYear}`)
+					loadEntries();
 				},
+				onYearChanged(year){
+					state.date.selectedYear = year;
+					console.log(`${state.date.selectedMonth} ${state.date.selectedYear}`)
+					loadEntries();
+				}
 			}))
 		}
 

@@ -11,6 +11,7 @@ const pageLength = 250
 type Handler struct {
 	db   *sqlx.DB
 	auth *auth.Authenticator
+	entryDao EntryDao
 }
 
 // NewHandler returns new Handler
@@ -19,5 +20,6 @@ func NewHandler(db *sqlx.DB, auth *auth.Authenticator) (*Handler, error) {
 	handler := new(Handler)
 	handler.db = db
 	handler.auth = auth
+	handler.entryDao = NewEntryDao(db.DB)
 	return handler, nil
 }

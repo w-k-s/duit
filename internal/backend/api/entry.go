@@ -1,7 +1,6 @@
 package api
 
 import (
-	"database/sql"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -25,73 +24,15 @@ func (h *Handler) SelectEntries(w http.ResponseWriter, r *http.Request, ps httpr
 	h.auth.MustAuthenticateUser(r)
 
 	// Get URL parameter
-	page := strToInt(r.URL.Query().Get("page"))
+	month := strToInt(r.URL.Query().Get("month"))
+	year := strToInt(r.URL.Query().Get("year"))
 	accountID := strToInt(r.URL.Query().Get("account"))
 
-	// Start transaction
-	// We only use it to fetch the data,
-	// so just rollback it later
-	tx := h.db.MustBegin()
-	defer tx.Rollback()
-
-	// Prepare SQL statement
-	stmtGetAccount, err := tx.Preparex(`SELECT id FROM account WHERE id = ?`)
-	checkError(err)
-
-	stmtGetEntriesMaxPage, err := tx.Preparex(`
-		SELECT CEIL(COUNT(*) / ?) FROM entry
-		WHERE account_id = ?
-		OR affected_account_id = ?`)
-	checkError(err)
-
-	stmtSelectEntries, err := tx.Preparex(`
-		SELECT e.id, e.account_id, e.affected_account_id,
-			a1.name account, a2.name affected_account,
-			e.type, e.description, c.name AS category, e.amount, e.date
-		FROM entry e
-		LEFT JOIN account a1 ON e.account_id = a1.id
-		LEFT JOIN account a2 ON e.affected_account_id = a2.id
-		LEFT JOIN category c ON e.category = c.id
-		WHERE e.account_id = ?
-		OR e.affected_account_id = ?
-		ORDER BY e.date DESC, e.id DESC
-		LIMIT ? OFFSET ?`)
-	checkError(err)
-
-	// Make sure account exist
-	var tmpID int64
-	err = stmtGetAccount.Get(&tmpID, accountID)
-	checkError(err)
-
-	if err == sql.ErrNoRows {
-		panic(fmt.Errorf("account doesn't exist"))
-	}
-
-	// Get entry count and calculate max page
-	var maxPage int
-	err = stmtGetEntriesMaxPage.Get(&maxPage, pageLength,
-		accountID, accountID)
-	checkError(err)
-
-	if page == 0 {
-		page = 1
-	} else if page > maxPage {
-		page = maxPage
-	}
-
-	offset := (page - 1) * pageLength
-
-	// Fetch entries from database
-	entries := []model.Entry{}
-	err = stmtSelectEntries.Select(&entries,
-		accountID, accountID,
-		pageLength, offset)
+	entries, err := h.entryDao.Entries(int64(accountID),month,year)
 	checkError(err)
 
 	// Return final result
 	result := map[string]interface{}{
-		"page":    page,
-		"maxPage": maxPage,
 		"entries": entries,
 	}
 
