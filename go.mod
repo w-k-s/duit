@@ -8,6 +8,7 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/jmoiron/sqlx v1.2.0
+	github.com/jszwec/csvutil v1.4.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749 // indirect

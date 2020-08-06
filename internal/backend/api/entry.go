@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/RadhiFadlillah/duit/internal/model"
+	"github.com/jszwec/csvutil"
 	"github.com/julienschmidt/httprouter"
 	"github.com/shopspring/decimal"
 	"gopkg.in/guregu/null.v3"
@@ -27,7 +28,7 @@ func (h *Handler) SelectEntries(w http.ResponseWriter, r *http.Request, ps httpr
 	year := strToInt(r.URL.Query().Get("year"))
 	accountID := strToInt(r.URL.Query().Get("account"))
 
-	entries, err := h.entryDao.Entries(int64(accountID), month, year)
+	entries, err := h.entryDao.Entries(int64(accountID), ForMonth(month, year))
 	checkError(err)
 
 	// Return final result
@@ -87,32 +88,11 @@ func (h *Handler) DeleteEntries(w http.ResponseWriter, r *http.Request, ps httpr
 	h.auth.MustAuthenticateUser(r)
 
 	// Decode request
-	var ids []int
+	var ids []int64
 	err := json.NewDecoder(r.Body).Decode(&ids)
 	checkError(err)
 
-	// Start transaction
-	// Make sure to rollback if panic ever happened
-	tx := h.db.MustBegin()
-
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			panic(r)
-		}
-	}()
-
-	// Delete from database
-	stmt, err := tx.Preparex(`DELETE FROM entry WHERE id = ?`)
-	checkError(err)
-
-	for _, id := range ids {
-		stmt.MustExec(id)
-	}
-
-	// Commit transaction
-	err = tx.Commit()
-	checkError(err)
+	h.entryDao.DeleteEntries(ids)
 }
 
 func (h *Handler) ImportEntriesFromCSV(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -147,7 +127,6 @@ func (h *Handler) ImportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 	checkError(err)
 	accountID = int64(iAccountID)
 
-	// Read CSV File
 	fileHeader := r.MultipartForm.File["import"][0]
 	file, err := fileHeader.Open()
 	checkError(err)
@@ -156,87 +135,71 @@ func (h *Handler) ImportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 	bytes, err := ioutil.ReadAll(file)
 	checkError(err)
 
-	csvReader := csv.NewReader(strings.NewReader(string(bytes)))
-
-	records, err := csvReader.ReadAll()
+	// Read CSV File
+	var csvEntries []struct {
+		Date        string `csv:"Date"`
+		Amount      string `csv:"Amount"`
+		Category    string `csv:"Category"`
+		Description string `csv:"Description"`
+	}
+	csvutil.Unmarshal(bytes, &csvEntries)
 	checkError(err)
 
-	dateIndex := -1
-	amountIndex := -1
-	descriptionIndex := -1
-	categoryIndex := -1
-	entries := make([]*model.Entry, 0, len(records))
-	categories := make([]model.Category, 0, len(records))
-	for i, record := range records {
-		if i == 0 {
-			for j, field := range record {
+	entries := make([]*model.Entry, 0, len(csvEntries))
+	errorBuilder := strings.Builder{}
+	for i, entry := range csvEntries {
 
-				if field == "Date" {
-					dateIndex = j
-				}
-				if field == "Amount" {
-					amountIndex = j
-				}
-				if field == "Description" {
-					descriptionIndex = j
-				}
-				if field == "Category" {
-					categoryIndex = j
-				}
-			}
+		addError := func(message string) {
+			errorBuilder.WriteString(fmt.Sprintf("Entry %d (Date: %q, Description: %q): %s", i, entry.Date, entry.Description, message))
+		}
+
+		if len(entry.Date) == 0 || len(entry.Amount) == 0 {
+			addError("'Date' and 'Amount' columns are mandatory")
 			continue
-		}
-
-		if dateIndex == -1 || amountIndex == -1 {
-			checkError(errors.New("'Date' and 'Amount' columns are mandatory"))
-			return
-		}
-
-		description := null.String{}
-		if descriptionIndex >= 0 {
-			description = null.StringFrom(record[descriptionIndex])
-		}
-
-		var amount decimal.Decimal
-		if amount, err = decimal.NewFromString(record[amountIndex]); err != nil {
-			amount = decimal.NewFromInt(0)
-		}
-
-		entryType := 1 // Income
-		if amount.IsNegative() {
-			entryType = 2 // Expense
-			amount = amount.Abs()
-		}
-
-		category := null.String{}
-		if categoryIndex >= 0 {
-			category = null.StringFrom(record[categoryIndex])
-			categories = append(categories, model.Category{
-				AccountID: accountID,
-				Name:      category.ValueOrZero(),
-				Type:      entryType,
-			})
 		}
 
 		date := ""
 		acceptableLayouts := []string{"2006-01-02", "2006-1-2", "2006-Jan-02", "2006-Jan-2", "2/01/2006"}
 		for _, layout := range acceptableLayouts {
-			if tDate, err := time.Parse(layout, record[dateIndex]); err == nil {
+			if tDate, err := time.Parse(layout, entry.Date); err == nil {
 				date = tDate.Format("2006-01-02")
 				break
 			}
 		}
 		if len(date) == 0 {
-			checkError(errors.New(fmt.Sprintf("Date must look like one of %s", acceptableLayouts)))
+			addError(fmt.Sprintf("Date must look like one of %s", acceptableLayouts))
+			continue
+		}
+
+		var amount decimal.Decimal
+		if amount, err = decimal.NewFromString(entry.Amount); err != nil {
+			addError(fmt.Sprintf("Amount is not a decimal: %q", entry.Amount))
+			continue
+		}
+
+		entryType := model.Income
+		if amount.IsNegative() {
+			entryType = model.Expense
+			amount = amount.Abs()
+		}
+
+		category := null.String{}
+		if len(entry.Category) != 0 {
+			category = null.StringFrom(entry.Category)
+		}
+
+		description := null.String{}
+		if len(entry.Description) != 0 {
+			description = null.StringFrom(entry.Description)
 		}
 
 		entries = append(entries, &model.Entry{
 			AccountID:         accountID,
 			AffectedAccountID: affectedAccountID,
-			Type:              entryType,
-			Description:       description,
-			Category:          category,
 			Amount:            amount,
+			Type:              entryType,
+			Category:          category,
+			Description:       description,
 			Date:              date,
 		})
 	}
@@ -256,25 +219,15 @@ func (h *Handler) ExportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 	h.auth.MustAuthenticateUser(r)
 
 	accountID := strToInt(r.URL.Query().Get("account"))
+	fromDate, fromDateErr := time.Parse("2006-01-02", r.URL.Query().Get("fromDate"))
+	toDate, toDateErr := time.Parse("2006-01-02", r.URL.Query().Get("toDate"))
 
-	// Start transaction
-	tx := h.db.MustBegin()
-	defer tx.Rollback()
+	if fromDateErr != nil || toDateErr != nil {
+		checkError(errors.New("fromDate and toDate must be formatted as yyyy-MM-dd"))
+		return
+	}
 
-	// Prepare SQL statement
-	stmtSelectEntries, err := tx.Preparex(`
-		SELECT e.id, e.account_id, e.affected_account_id,
-			e.type, e.description, c.name as category, e.amount, e.date
-		FROM entry e
-		LEFT JOIN category c ON e.category = c.id
-		WHERE e.account_id = ? 
-		OR e.affected_account_id = ?
-		ORDER BY e.date DESC, e.id DESC`)
-	checkError(err)
-
-	entries := []model.Entry{}
-	err = stmtSelectEntries.Select(&entries,
-		accountID, accountID)
+	entries, err := h.entryDao.Entries(int64(accountID), &TimeRange{fromDate, toDate})
 	checkError(err)
 
 	var exportCsvBuilder strings.Builder
@@ -282,7 +235,7 @@ func (h *Handler) ExportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 
 	csvWriter.Write([]string{"Date", "Amount", "Category", "Description"})
 	for _, entry := range entries {
-		if entry.Type == 2 {
+		if entry.Type.IsExpense() {
 			entry.Amount = entry.Amount.Neg()
 		}
 		csvWriter.Write([]string{entry.Date, entry.Amount.String(), entry.Category.ValueOrZero(), entry.Description.ValueOrZero()})

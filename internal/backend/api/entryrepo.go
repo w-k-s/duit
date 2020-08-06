@@ -8,14 +8,28 @@ import (
 	"time"
 )
 
+type TimeRange struct {
+	StartDate time.Time
+	EndDate   time.Time
+}
+
+func ForMonth(month int, year int) *TimeRange {
+	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	return &TimeRange{
+		startDate,
+		startDate.AddDate(0, 1, -1),
+	}
+}
+
 type EntryDao interface {
-	Entries(accountId int64, month int, year int) ([]*model.Entry, error)
+	Entries(accountId int64, tr *TimeRange) ([]*model.Entry, error)
 	SaveEntries(entries []*model.Entry) error
 	SaveEntry(entry *model.Entry) error
 	UpdateEntry(entry *model.Entry) error
 	FindCategoriesByName(name []string, accountId int64) ([]*model.Category, error)
 	CreateCategoriesIfNotExist([]*model.Category) ([]*model.Category, error)
 	CreateCategoryIfNotExists(category *model.Category) (*model.Category, error)
+	DeleteEntries(ids []int64) (int64, error)
 }
 
 type defaultEntryDao struct {
@@ -28,10 +42,7 @@ func NewEntryDao(db *sql.DB) EntryDao {
 	}
 }
 
-func (d *defaultEntryDao) Entries(accountId int64, month int, year int) ([]*model.Entry, error) {
-	start := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
-	end := start.AddDate(0, 1, -1)
-
+func (d *defaultEntryDao) Entries(accountId int64, tr *TimeRange) ([]*model.Entry, error) {
 	rows, err := sq.Select(
 		"e.id",
 		"e.account_id",
@@ -53,10 +64,10 @@ func (d *defaultEntryDao) Entries(accountId int64, month int, year int) ([]*mode
 		}).
 		Where(sq.And{
 			sq.GtOrEq{
-				"e.date": start,
+				"e.date": tr.StartDate,
 			},
 			sq.LtOrEq{
-				"e.date": end,
+				"e.date": tr.EndDate,
 			},
 		}).
 		OrderBy("e.date DESC, e.id DESC").
@@ -189,7 +200,7 @@ func (d *defaultEntryDao) SaveEntry(entry *model.Entry) error {
 
 	// Save Entries
 
-	res,err := sq.
+	res, err := sq.
 		Insert("entry").
 		Columns(
 			"account_id",
@@ -200,14 +211,14 @@ func (d *defaultEntryDao) SaveEntry(entry *model.Entry) error {
 			"date",
 			"category",
 		).Values(
-			entry.AccountID,
-			entry.AffectedAccountID,
-			entry.Type,
-			entry.Description,
-			entry.Amount,
-			entry.Date,
-			category.ID,
-		).
+		entry.AccountID,
+		entry.AffectedAccountID,
+		entry.Type,
+		entry.Description,
+		entry.Amount,
+		entry.Date,
+		category.ID,
+	).
 		RunWith(d.db).
 		Exec()
 
@@ -336,7 +347,7 @@ func (d *defaultEntryDao) CreateCategoriesIfNotExist(categories []*model.Categor
 	}
 
 	categoryNames := make([]string, 0, len(categories))
-	categoryTypeMap := make(map[string]int)
+	categoryTypeMap := make(map[string]model.Type)
 	for _, category := range categories {
 		categoryNames = append(categoryNames, category.Name)
 		categoryTypeMap[category.Name] = category.Type
@@ -401,7 +412,7 @@ func (d *defaultEntryDao) CreateCategoryIfNotExists(category *model.Category) (*
 	if category == nil {
 		return nil, fmt.Errorf("Cannot create category %q", category)
 	}
-	if !category.IsIncome() && !category.IsExpense() {
+	if !category.Type.IsIncome() && !category.Type.IsExpense() {
 		return nil, fmt.Errorf("Category is neither income nor expense. Type %q", category.Type)
 	}
 
@@ -469,8 +480,8 @@ func (d *defaultEntryDao) CreateCategoryIfNotExists(category *model.Category) (*
 	}
 
 	lastInsertedID, err := res.LastInsertId()
-	if err != nil{
-		return nil,err
+	if err != nil {
+		return nil, err
 	}
 
 	return &model.Category{
@@ -479,4 +490,35 @@ func (d *defaultEntryDao) CreateCategoryIfNotExists(category *model.Category) (*
 		Name:      category.Name,
 		Type:      category.Type,
 	}, nil
+}
+
+func (d *defaultEntryDao) DeleteEntries(ids []int64) (int64, error) {
+	tx, err := d.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+
+	res, err := sq.
+		Delete("entry").
+		Where(sq.And{
+			sq.Eq{"id": ids},
+		}).
+		RunWith(d.db).
+		Exec()
+
+	if err != nil {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return 0, rollbackErr
+		}
+		return 0, err
+	}
+
+	// Commit transaction
+	err = tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+
+	rowsAffected, _ := res.RowsAffected()
+	return rowsAffected, nil
 }

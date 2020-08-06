@@ -13,6 +13,18 @@ const (
 	Transfer
 )
 
+func (t Type) IsIncome() bool {
+	return t == Income
+}
+
+func (t Type) IsExpense() bool {
+	return t == Expense
+}
+
+func (t Type) IsTransfer() bool {
+	return t == Transfer
+}
+
 // Config is content of configuration file
 type Config struct {
 	DbUser     string
@@ -26,16 +38,7 @@ type Category struct {
 	ID        int64  `db:"id"         json:"-"`
 	AccountID int64  `db:"account_id" json:"-"`
 	Name      string `db:"name"       json:"name"`
-	Type      int    `db:"type"       json:"type"`
-}
-
-// Returns true if the category type iota is valid
-func (c Category) IsExpense() bool {
-	return c.Type == int(Expense)
-}
-
-func (c Category) IsIncome() bool {
-	return c.Type == int(Income)
+	Type      Type   `db:"type"       json:"type"`
 }
 
 // User is container for user's data
@@ -62,7 +65,7 @@ type Entry struct {
 	ID                int64           `db:"id"                  json:"id"`
 	AccountID         int64           `db:"account_id"          json:"accountId"`
 	AffectedAccountID null.Int        `db:"affected_account_id" json:"affectedAccountId"`
-	Type              int             `db:"type"                json:"type"`
+	Type              Type            `db:"type"                json:"type"`
 	Description       null.String     `db:"description"         json:"description"`
 	Category          null.String     `db:"category"            json:"category"`
 	Amount            decimal.Decimal `db:"amount"              json:"amount"`
