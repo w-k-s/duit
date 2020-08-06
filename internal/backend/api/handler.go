@@ -9,8 +9,8 @@ const pageLength = 250
 
 // Handler represents handler for every API routes.
 type Handler struct {
-	db   *sqlx.DB
-	auth *auth.Authenticator
+	db       *sqlx.DB
+	auth     *auth.Authenticator
 	entryDao EntryDao
 }
 

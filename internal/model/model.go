@@ -6,9 +6,10 @@ import (
 )
 
 type Type int
+
 const (
-    Income Type = iota + 1
-    Expense 
+	Income Type = iota + 1
+	Expense
 	Transfer
 )
 
@@ -29,8 +30,12 @@ type Category struct {
 }
 
 // Returns true if the category type iota is valid
-func IsCategoryTypeValid(categoryType int) bool{
-	return categoryType == 1 || categoryType == 2
+func (c Category) IsExpense() bool {
+	return c.Type == int(Expense)
+}
+
+func (c Category) IsIncome() bool {
+	return c.Type == int(Income)
 }
 
 // User is container for user's data

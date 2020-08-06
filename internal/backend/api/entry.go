@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/RadhiFadlillah/duit/internal/model"
-	"github.com/jmoiron/sqlx"
 	"github.com/julienschmidt/httprouter"
 	"github.com/shopspring/decimal"
 	"gopkg.in/guregu/null.v3"
@@ -28,7 +27,7 @@ func (h *Handler) SelectEntries(w http.ResponseWriter, r *http.Request, ps httpr
 	year := strToInt(r.URL.Query().Get("year"))
 	accountID := strToInt(r.URL.Query().Get("account"))
 
-	entries, err := h.entryDao.Entries(int64(accountID),month,year)
+	entries, err := h.entryDao.Entries(int64(accountID), month, year)
 	checkError(err)
 
 	// Return final result
@@ -52,57 +51,7 @@ func (h *Handler) InsertEntry(w http.ResponseWriter, r *http.Request, ps httprou
 	err := json.NewDecoder(r.Body).Decode(&entry)
 	checkError(err)
 
-	// Start transaction
-	// Make sure to rollback if panic ever happened
-	tx := h.db.MustBegin()
-
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			panic(r)
-		}
-	}()
-
-	// Prepare statements
-	stmtInsertEntry, err := tx.Preparex(`INSERT INTO entry 
-		(account_id, affected_account_id, type, description, category, amount, date)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`)
-	checkError(err)
-
-	stmtGetEntry, err := tx.Preparex(`
-		SELECT e.id, e.account_id, e.affected_account_id,
-			a1.name account, a2.name affected_account,
-			e.type, e.description, c.name AS category, e.amount, e.date
-		FROM entry e
-		LEFT JOIN account a1 ON e.account_id = a1.id
-		LEFT JOIN account a2 ON e.affected_account_id = a2.id
-		LEFT JOIN category c ON e.category = c.id
-		WHERE e.id = ?`)
-	checkError(err)
-
-	// Save to database
-	categoryID := createCategoryIfNotExists(tx, model.Category{
-		Name:      entry.Category.ValueOrZero(),
-		AccountID: entry.AccountID,
-		Type:      entry.Type,
-	})
-
-	res := stmtInsertEntry.MustExec(
-		entry.AccountID,
-		entry.AffectedAccountID,
-		entry.Type,
-		entry.Description,
-		categoryID,
-		entry.Amount,
-		entry.Date)
-	entry.ID, _ = res.LastInsertId()
-
-	// Fetch the inserted data
-	err = stmtGetEntry.Get(&entry, entry.ID)
-	checkError(err)
-
-	// Commit transaction
-	err = tx.Commit()
+	err = h.entryDao.SaveEntry(&entry)
 	checkError(err)
 
 	// Return inserted entry
@@ -122,51 +71,7 @@ func (h *Handler) UpdateEntry(w http.ResponseWriter, r *http.Request, ps httprou
 	err := json.NewDecoder(r.Body).Decode(&entry)
 	checkError(err)
 
-	// Start transaction
-	// Make sure to rollback if panic ever happened
-	tx := h.db.MustBegin()
-
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			panic(r)
-		}
-	}()
-
-	// Prepare statements
-	stmtUpdateEntry, err := tx.Preparex(`UPDATE entry 
-		SET affected_account_id = ?, description = ?, category = ?, amount = ?, date = ?
-		WHERE id = ?`)
-	checkError(err)
-
-	stmtGetEntry, err := tx.Preparex(`
-		SELECT e.id, e.account_id, e.affected_account_id,
-			a1.name account, a2.name affected_account,
-			e.type, e.description, c.name AS category, e.amount, e.date
-		FROM entry e
-		LEFT JOIN account a1 ON e.account_id = a1.id
-		LEFT JOIN account a2 ON e.affected_account_id = a2.id
-		LEFT JOIN category c ON e.category = c.id
-		WHERE e.id = ?`)
-	checkError(err)
-
-	// Update database
-	categoryID := createCategoryIfNotExists(tx, model.Category{
-		Name:      entry.Category.ValueOrZero(),
-		AccountID: entry.AccountID,
-		Type:      entry.Type,
-	})
-
-	stmtUpdateEntry.MustExec(
-		entry.AffectedAccountID, entry.Description,
-		categoryID, entry.Amount, entry.Date, entry.ID)
-
-	// Fetch the updated data
-	err = stmtGetEntry.Get(&entry, entry.ID)
-	checkError(err)
-
-	// Commit transaction
-	err = tx.Commit()
+	err = h.entryDao.UpdateEntry(&entry)
 	checkError(err)
 
 	// Return updated entry
@@ -208,40 +113,6 @@ func (h *Handler) DeleteEntries(w http.ResponseWriter, r *http.Request, ps httpr
 	// Commit transaction
 	err = tx.Commit()
 	checkError(err)
-}
-
-func createCategoryIfNotExists(tx *sqlx.Tx, category model.Category) null.Int {
-
-	if len(category.Name) == 0 {
-		return null.Int{}
-	}
-	if !model.IsCategoryTypeValid(category.Type) {
-		return null.Int{}
-	}
-
-	stmtSelectCategory, err := tx.Preparex(`
-			SELECT id 
-			FROM category
-			WHERE account_id = ? AND name = ? AND type = ?`)
-	checkError(err)
-
-	var categoryID int64
-	if err = stmtSelectCategory.Get(&categoryID, category.AccountID, category.Name, category.Type); err == nil {
-		return null.IntFrom(categoryID)
-	}
-	checkError(err)
-
-	stmtInsertCategory, err := tx.Preparex(`
-		INSERT INTO category (account_id, name, type) 
-		VALUES (?, ?, ?) `)
-	checkError(err)
-
-	res := stmtInsertCategory.MustExec(category.AccountID, category.Name, category.Type)
-
-	lastInsertedID, err := res.LastInsertId()
-	checkError(err)
-
-	return null.IntFrom(lastInsertedID)
 }
 
 func (h *Handler) ImportEntriesFromCSV(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -294,7 +165,7 @@ func (h *Handler) ImportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 	amountIndex := -1
 	descriptionIndex := -1
 	categoryIndex := -1
-	entries := make([]model.Entry, 0, len(records))
+	entries := make([]*model.Entry, 0, len(records))
 	categories := make([]model.Category, 0, len(records))
 	for i, record := range records {
 		if i == 0 {
@@ -342,8 +213,8 @@ func (h *Handler) ImportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 			category = null.StringFrom(record[categoryIndex])
 			categories = append(categories, model.Category{
 				AccountID: accountID,
-				Name: category.ValueOrZero(),
-				Type: entryType,
+				Name:      category.ValueOrZero(),
+				Type:      entryType,
 			})
 		}
 
@@ -359,7 +230,7 @@ func (h *Handler) ImportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 			checkError(errors.New(fmt.Sprintf("Date must look like one of %s", acceptableLayouts)))
 		}
 
-		entries = append(entries, model.Entry{
+		entries = append(entries, &model.Entry{
 			AccountID:         accountID,
 			AffectedAccountID: affectedAccountID,
 			Type:              entryType,
@@ -370,101 +241,7 @@ func (h *Handler) ImportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 		})
 	}
 
-	// Start Categories transaction
-	txCategories := h.db.MustBegin()
-	defer func() {
-		if r := recover(); r != nil {
-			txCategories.Rollback()
-			panic(r)
-		}
-	}()
-
-	// Get all categories for account
-	stmtSelectCategory, err := txCategories.Preparex("SELECT id, account_id, name, type FROM category WHERE account_id = ?")
-	checkError(err)
-
-	var existingCategoriesSlice []model.Category
-	err = stmtSelectCategory.Select(&existingCategoriesSlice, accountID);
-	checkError(err)
-
-	// Calculate categories to save
-	newCategories := []model.Category{}
-	existingCategoriesMap := map[string]model.Category{}
-
-	for _, existingCategory := range existingCategoriesSlice{
-		existingCategoriesMap[fmt.Sprintf("%d-%s",existingCategory.Type, existingCategory.Name)] = existingCategory;
-	}
-
-	for _, category := range categories{
-		if _, found := existingCategoriesMap[fmt.Sprintf("%d-%s",category.Type, category.Name)]; !found {
-			newCategories = append(newCategories, category)
-		}
-	}
-
-	// Save new categories
-	if len(newCategories) > 0 {
-		valueStrings := make([]string, 0, len(newCategories))
-		valueArgs := make([]interface{}, 0, len(newCategories)*3)
-		for _, category := range newCategories {
-			valueStrings = append(valueStrings, "(?, ?, ?)")
-			valueArgs = append(valueArgs, category.AccountID)
-			valueArgs = append(valueArgs, category.Name)
-			valueArgs = append(valueArgs, category.Type)
-		}
-		stmt := fmt.Sprintf("INSERT INTO category (account_id, name, type) VALUES %s",
-			strings.Join(valueStrings, ","))
-		_, err = h.db.Exec(stmt, valueArgs...)
-		checkError(err)
-	}
-
-	// Commit
-	err = txCategories.Commit()
-	checkError(err)
-
-	// Start second transaction
-	txEntries := h.db.MustBegin()
-	defer func() {
-		if r := recover(); r != nil {
-			txEntries.Rollback()
-			panic(r)
-		}
-	}()
-
-	// Get all new categories
-	stmtSelectCategory, err = txEntries.Preparex("SELECT id, account_id, name, type FROM category WHERE account_id = ?")
-	checkError(err)
-
-	allCategoriesSlice := []model.Category{}
-	err = stmtSelectCategory.Select(&allCategoriesSlice, accountID);
-	checkError(err)
-
-	allCategoriesMap := map[string]model.Category{}
-	for _, category := range allCategoriesSlice{
-		allCategoriesMap[fmt.Sprintf("%d-%s",category.Type, category.Name)] = category;
-	}
-
-	valueStrings := make([]string, 0, len(entries))
-	valueArgs := make([]interface{}, 0, len(entries)*6)
-	for _, entry := range entries {
-
-		category, _ := allCategoriesMap[fmt.Sprintf("%d-%s",entry.Type, entry.Category.ValueOrZero())]
-
-		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?)")
-		valueArgs = append(valueArgs, entry.AccountID)
-		valueArgs = append(valueArgs, entry.AffectedAccountID)
-		valueArgs = append(valueArgs, entry.Type)
-		valueArgs = append(valueArgs, entry.Description)
-		valueArgs = append(valueArgs, category.ID)
-		valueArgs = append(valueArgs, entry.Amount)
-		valueArgs = append(valueArgs, entry.Date)
-	}
-	stmt := fmt.Sprintf("INSERT INTO entry (account_id, affected_account_id, type, description, category, amount, date) VALUES %s",
-		strings.Join(valueStrings, ","))
-	_, err = h.db.Exec(stmt, valueArgs...)
-	checkError(err)
-
-	// Commit transaction
-	err = txEntries.Commit()
+	err = h.entryDao.SaveEntries(entries)
 	checkError(err)
 
 	// Return updated entry
@@ -518,4 +295,3 @@ func (h *Handler) ExportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 
 	io.Copy(w, strings.NewReader(exportCsvBuilder.String()))
 }
-
