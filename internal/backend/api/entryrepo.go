@@ -271,6 +271,10 @@ func (d *defaultEntryDao) UpdateEntry(entry *model.Entry) error {
 		Set("amount", entry.Amount).
 		Set("date", entry.Date).
 		Set("category", category.ID).
+		Where(sq.And{
+			sq.Eq{"id": entry.ID},
+			sq.Eq{"account_id": entry.AccountID},
+		}).
 		RunWith(d.db).
 		Exec()
 
