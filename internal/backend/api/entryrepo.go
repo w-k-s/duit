@@ -29,6 +29,7 @@ type EntryDao interface {
 	FindCategoriesByName(name []string, accountId int64) ([]*model.Category, error)
 	CreateCategoriesIfNotExist([]*model.Category) ([]*model.Category, error)
 	CreateCategoryIfNotExists(category *model.Category) (*model.Category, error)
+	Categories(accountId int64) ([]*model.Category,error)
 	DeleteEntries(ids []int64) (int64, error)
 }
 
@@ -525,4 +526,34 @@ func (d *defaultEntryDao) DeleteEntries(ids []int64) (int64, error) {
 
 	rowsAffected, _ := res.RowsAffected()
 	return rowsAffected, nil
+}
+
+func (d *defaultEntryDao) Categories(accountId int64) ([]*model.Category, error) {
+	
+	rows, err := sq.Select(
+		"name",
+		"type").
+		From("category").
+		Where(sq.Eq{"account_id": accountId}).
+		OrderBy("name").
+		RunWith(d.db).
+		Query()
+
+	if err != nil {
+		return nil, err
+	}
+
+	categories := make([]*model.Category, 0)
+	for rows.Next() {
+		var category model.Category
+		if err := rows.Scan(
+			&category.Name,
+			&category.Type,
+		); err != nil {
+			return nil, err
+		}
+		categories = append(categories, &category)
+	}
+
+	return categories, nil
 }

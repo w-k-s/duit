@@ -1,7 +1,6 @@
 package api
 
 import (
-	"github.com/RadhiFadlillah/duit/internal/model"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
 )
@@ -14,19 +13,7 @@ func (h *Handler) SelectCategories(w http.ResponseWriter, r *http.Request, ps ht
 	// Get URL parameter
 	accountID := strToInt(r.URL.Query().Get("account"))
 
-	// Start transaction
-	// We only use it to fetch the data,
-	// so just rollback it later
-	tx := h.db.MustBegin()
-	defer tx.Rollback()
-
-	// Prepare SQL statement
-	stmtSelectCategories, err := tx.Preparex(`SELECT name, type FROM category WHERE account_id = ? ORDER BY name`)
-	checkError(err)
-
-	// Fetch categories from database
-	categories := []model.Category{}
-	err = stmtSelectCategories.Select(&categories, accountID)
+	categories,err := h.entryDao.Categories(int64(accountID))
 	checkError(err)
 
 	// Return list of categories
