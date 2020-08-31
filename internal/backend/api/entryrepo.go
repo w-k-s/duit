@@ -165,7 +165,7 @@ func (d *defaultEntryDao) SaveEntries(entries []*model.Entry) error {
 		)
 	}
 
-	_, err = ib.RunWith(d.db).Exec()
+	_, err = ib.RunWith(tx).Exec()
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
 			return rollbackErr
@@ -224,7 +224,7 @@ func (d *defaultEntryDao) SaveEntry(entry *model.Entry) error {
 		entry.Date,
 		category.ID,
 	).
-		RunWith(d.db).
+		RunWith(tx).
 		Exec()
 
 	if err != nil {
@@ -280,7 +280,7 @@ func (d *defaultEntryDao) UpdateEntry(entry *model.Entry) error {
 			sq.Eq{"id": entry.ID},
 			sq.Eq{"account_id": entry.AccountID},
 		}).
-		RunWith(d.db).
+		RunWith(tx).
 		Exec()
 
 	if err != nil {
@@ -399,7 +399,7 @@ func (d *defaultEntryDao) CreateCategoriesIfNotExist(categories []*model.Categor
 		ib = ib.Values(newCategory.AccountID, newCategory.Name, newCategory.Type)
 	}
 
-	_, err = ib.RunWith(d.db).Exec()
+	_, err = ib.RunWith(tx).Exec()
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
 			return nil, rollbackErr
@@ -443,7 +443,7 @@ func (d *defaultEntryDao) CreateCategoryIfNotExists(category *model.Category) (*
 			sq.Eq{"name": category.Name},
 		}).
 		Limit(1).
-		RunWith(d.db).
+		RunWith(tx).
 		Query()
 
 	if err != nil && err != sql.ErrNoRows {
@@ -474,7 +474,7 @@ func (d *defaultEntryDao) CreateCategoryIfNotExists(category *model.Category) (*
 			"type",
 		).
 		Values(category.AccountID, category.Name, category.Type).
-		RunWith(d.db).
+		RunWith(tx).
 		Exec()
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
@@ -512,7 +512,7 @@ func (d *defaultEntryDao) DeleteEntries(ids []int64) (int64, error) {
 		Where(sq.And{
 			sq.Eq{"id": ids},
 		}).
-		RunWith(d.db).
+		RunWith(tx).
 		Exec()
 
 	if err != nil {

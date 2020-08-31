@@ -1,10 +1,10 @@
 package api
 
 import (
-	"net/http"
-	"time"
 	"github.com/julienschmidt/httprouter"
 	"github.com/shopspring/decimal"
+	"net/http"
+	"time"
 )
 
 // GetChartsData is handler for GET /api/charts
@@ -22,10 +22,10 @@ func (h *Handler) GetChartsData(w http.ResponseWriter, r *http.Request, ps httpr
 	accounts, err := h.accountDao.Accounts()
 	checkError(err)
 
-	chartSeries,err := h.entryDao.GetMonthStartBalanceForYear(year)
+	chartSeries, err := h.entryDao.GetMonthStartBalanceForYear(year)
 	checkError(err)
 
-	chartLimit,err := h.entryDao.GetMininumAndMaximumExpenseForYear(year)
+	chartLimit, err := h.entryDao.GetMininumAndMaximumExpenseForYear(year)
 	checkError(err)
 
 	// Calculate limit
