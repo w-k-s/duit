@@ -13,7 +13,7 @@ func (h *Handler) SelectCategories(w http.ResponseWriter, r *http.Request, ps ht
 	// Get URL parameter
 	accountID := strToInt(r.URL.Query().Get("account"))
 
-	categories,err := h.entryDao.Categories(int64(accountID))
+	categories, err := h.entryDao.Categories(int64(accountID))
 	checkError(err)
 
 	// Return list of categories

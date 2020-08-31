@@ -82,3 +82,37 @@ type ChartSeries struct {
 	Month     int             `db:"month"      json:"month"`
 	Amount    decimal.Decimal `db:"amount"     json:"amount"`
 }
+
+type ExpenseRange struct {
+	minAmount decimal.Decimal
+	maxAmount decimal.Decimal
+}
+
+func NewExpenseRange(minAmount decimal.Decimal, maxAmount decimal.Decimal) *ExpenseRange {
+	return &ExpenseRange{
+		minAmount,
+		maxAmount,
+	}
+}
+
+func (er *ExpenseRange) MinAmount() decimal.Decimal {
+	return er.minAmount
+}
+
+func (er *ExpenseRange) MaxAmount() decimal.Decimal {
+	return er.maxAmount
+}
+
+type CategoryExpensesSummary struct {
+	category *Category
+	month    int
+	expense  decimal.Decimal
+}
+
+func NewCategoryExpenseSummary(category *Category, month int, expense decimal.Decimal) *CategoryExpensesSummary {
+	return &CategoryExpensesSummary{
+		category,
+		month,
+		expense,
+	}
+}

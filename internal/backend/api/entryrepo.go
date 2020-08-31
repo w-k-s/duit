@@ -5,6 +5,7 @@ import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/RadhiFadlillah/duit/internal/model"
+	"github.com/shopspring/decimal"
 	"time"
 )
 
@@ -29,8 +30,11 @@ type EntryDao interface {
 	FindCategoriesByName(name []string, accountId int64) ([]*model.Category, error)
 	CreateCategoriesIfNotExist([]*model.Category) ([]*model.Category, error)
 	CreateCategoryIfNotExists(category *model.Category) (*model.Category, error)
-	Categories(accountId int64) ([]*model.Category,error)
+	Categories(accountId int64) ([]*model.Category, error)
 	DeleteEntries(ids []int64) (int64, error)
+	GetMininumAndMaximumExpenseForYear(year int) (*model.ExpenseRange, error)
+	GetMonthStartBalanceForYear(year int) ([]*model.ChartSeries, error)
+	GetTotalExpensePerCategoryForMonth(accountId int64, month int, categoryType model.Type) ([]*model.CategoryExpensesSummary, error)
 }
 
 type defaultEntryDao struct {
@@ -529,7 +533,7 @@ func (d *defaultEntryDao) DeleteEntries(ids []int64) (int64, error) {
 }
 
 func (d *defaultEntryDao) Categories(accountId int64) ([]*model.Category, error) {
-	
+
 	rows, err := sq.Select(
 		"name",
 		"type").
@@ -556,4 +560,119 @@ func (d *defaultEntryDao) Categories(accountId int64) ([]*model.Category, error)
 	}
 
 	return categories, nil
+}
+
+func (d *defaultEntryDao) GetMininumAndMaximumExpenseForYear(year int) (*model.ExpenseRange, error) {
+
+	rows, err := sq.Select(
+		"MIN(amount) AS min_amount",
+		"MAX(amount) AS max_amount").
+		From("cumulative_amount").
+		RunWith(d.db).
+		Query()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var fMinAmount float64
+	var fMaxAmount float64
+
+	if rows.Next() {
+		if err := rows.Scan(
+			&fMinAmount,
+			&fMaxAmount,
+		); err != nil {
+			return nil, err
+		}
+	}
+
+	minAmount, _ := decimal.NewFromString(fmt.Sprintf("%.3f", fMinAmount))
+	maxAmount, _ := decimal.NewFromString(fmt.Sprintf("%.3f", fMaxAmount))
+
+	return model.NewExpenseRange(
+		minAmount,
+		maxAmount,
+	), nil
+}
+
+func (d *defaultEntryDao) GetMonthStartBalanceForYear(year int) ([]*model.ChartSeries, error) {
+
+	rows, err := sq.Select(
+		"account_id",
+		"MONTH(CONCAT(month, \"-01\")) AS month",
+		"amount",
+	).
+		From("cumulative_amount").
+		Where(sq.Eq{"YEAR(CONCAT(month, \"-01\"))": year}).
+		RunWith(d.db).
+		Query()
+
+	if err != nil {
+		return nil, err
+	}
+
+	chartSeries := make([]*model.ChartSeries, 0, 12)
+	for rows.Next() {
+		var series model.ChartSeries
+		if err := rows.Scan(
+			&series.AccountID,
+			&series.Month,
+			&series.Amount,
+		); err != nil {
+			return nil, err
+		}
+		chartSeries = append(chartSeries, &series)
+	}
+	return chartSeries, nil
+}
+
+func (d *defaultEntryDao) GetTotalExpensePerCategoryForMonth(accountId int64, month int, categoryType model.Type) ([]*model.CategoryExpensesSummary, error) {
+
+	rows, err := sq.Select(
+		"e.account_id",
+		"c.name AS category",
+		"c.type",
+		"c.id",
+		"SUM(amount) AS amount",
+	).
+		From("entry e").
+		LeftJoin("category c ON e.category = c.id").
+		Where(sq.And{
+			sq.Eq{"e.type": categoryType},
+			sq.Eq{"e.accountId": accountId},
+			sq.Eq{"MONTH(e.date)": month},
+		}).
+		RunWith(d.db).
+		Query()
+
+	if err != nil {
+		return nil, err
+	}
+
+	expensesSummary := make([]*model.CategoryExpensesSummary, 0, 30)
+	for rows.Next() {
+		var accountId int64
+		var categoryName string
+		var categoryType model.Type
+		var categoryId int64
+		var fAmount float64
+		if err := rows.Scan(
+			&accountId,
+			&categoryName,
+			&categoryType,
+			&categoryId,
+			&fAmount,
+		); err != nil {
+			return nil, err
+		}
+		amount, _ := decimal.NewFromString(fmt.Sprintf("%.3f", fAmount))
+		expensesSummary = append(expensesSummary, model.NewCategoryExpenseSummary(&model.Category{
+			ID:        categoryId,
+			AccountID: accountId,
+			Name:      categoryName,
+			Type:      categoryType,
+		}, month, amount))
+	}
+	return expensesSummary, nil
 }
