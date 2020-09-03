@@ -11,6 +11,7 @@ type Handler struct {
 	auth       *auth.Authenticator
 	entryDao   EntryDao
 	accountDao AccountDao
+	userDao	   UserDao
 }
 
 // NewHandler returns new Handler
@@ -21,5 +22,6 @@ func NewHandler(db *sqlx.DB, auth *auth.Authenticator) (*Handler, error) {
 	handler.auth = auth
 	handler.entryDao = NewEntryDao(db.DB)
 	handler.accountDao = NewAccountDao(db.DB)
+	handler.userDao = NewUserDao(db.DB)
 	return handler, nil
 }

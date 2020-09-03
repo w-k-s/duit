@@ -116,3 +116,23 @@ func NewCategoryExpenseSummary(category *Category, month int, expense decimal.De
 		expense,
 	}
 }
+
+type Credentials struct{
+	username string
+	password string
+}
+
+func CreateCredentials(username, password string) Credentials{
+	return Credentials{
+		username,
+		password,
+	}
+}
+
+func (c Credentials) Username() string{
+	return c.username
+}
+
+func (c Credentials) Password() string{
+	return c.password
+}
