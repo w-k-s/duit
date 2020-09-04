@@ -3,6 +3,7 @@ package api
 import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/shopspring/decimal"
+	"github.com/RadhiFadlillah/duit/internal/backend/utils"
 	"net/http"
 	"time"
 )
@@ -13,7 +14,7 @@ func (h *Handler) GetChartsData(w http.ResponseWriter, r *http.Request, ps httpr
 	h.auth.MustAuthenticateUser(r)
 
 	// Get URL parameter
-	year := strToInt(r.URL.Query().Get("year"))
+	year := utils.StrToInt(r.URL.Query().Get("year"))
 	if year == 0 {
 		year = time.Now().Year()
 	}

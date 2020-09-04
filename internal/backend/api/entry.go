@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/RadhiFadlillah/duit/internal/model"
+	"github.com/RadhiFadlillah/duit/internal/backend/utils"
+	"github.com/RadhiFadlillah/duit/internal/backend/repo"
 	"github.com/jszwec/csvutil"
 	"github.com/julienschmidt/httprouter"
 	"github.com/shopspring/decimal"
@@ -24,11 +26,11 @@ func (h *Handler) SelectEntries(w http.ResponseWriter, r *http.Request, ps httpr
 	h.auth.MustAuthenticateUser(r)
 
 	// Get URL parameter
-	month := strToInt(r.URL.Query().Get("month"))
-	year := strToInt(r.URL.Query().Get("year"))
-	accountID := strToInt(r.URL.Query().Get("account"))
+	month := utils.StrToInt(r.URL.Query().Get("month"))
+	year := utils.StrToInt(r.URL.Query().Get("year"))
+	accountID := utils.StrToInt(r.URL.Query().Get("account"))
 
-	entries, err := h.entryDao.Entries(int64(accountID), ForMonth(month, year))
+	entries, err := h.entryDao.Entries(int64(accountID), repo.ForMonth(month, year))
 	checkError(err)
 
 	// Return final result
@@ -218,7 +220,7 @@ func (h *Handler) ExportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 	// Make sure session still valid
 	h.auth.MustAuthenticateUser(r)
 
-	accountID := strToInt(r.URL.Query().Get("account"))
+	accountID := utils.StrToInt(r.URL.Query().Get("account"))
 	fromDate, fromDateErr := time.Parse("2006-01-02", r.URL.Query().Get("fromDate"))
 	toDate, toDateErr := time.Parse("2006-01-02", r.URL.Query().Get("toDate"))
 
@@ -227,7 +229,7 @@ func (h *Handler) ExportEntriesFromCSV(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	entries, err := h.entryDao.Entries(int64(accountID), &TimeRange{fromDate, toDate})
+	entries, err := h.entryDao.Entries(int64(accountID), &repo.TimeRange{fromDate, toDate})
 	checkError(err)
 
 	var exportCsvBuilder strings.Builder

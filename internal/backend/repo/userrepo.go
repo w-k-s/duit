@@ -1,16 +1,18 @@
-package api
+package repo
 
 import (
 	"database/sql"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/RadhiFadlillah/duit/internal/model"
+	"github.com/RadhiFadlillah/duit/internal/backend/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type UserDao interface {
 	Users() ([]*model.User, error)
 	FindUserById(userId int64) (*model.User, error)
+	FindUserByUsername(username string) (*model.User, error)
 	SaveUser(user *model.User) error
 	// Batch deletes users with ids, returns usernames of all deleted users
 	// Query will not be executed if there wouldn't be any admin users left after the transaction
@@ -104,7 +106,9 @@ func (d *defaultUserDao) SaveUser(user *model.User) error {
 	// Hash password with bcrypt
 	password := []byte(user.Password)
 	hashedPassword, err := bcrypt.GenerateFromPassword(password, 10)
-	checkError(err)
+	if err != nil {
+		return err
+	}
 
 	//Begin Transaction
 	tx, err := d.db.Begin()
@@ -159,6 +163,38 @@ func (d *defaultUserDao) FindUserById(userId int64) (*model.User, error) {
 	).
 		From("user").
 		Where(sq.Eq{"id": userId}).
+		RunWith(d.db).
+		Query()
+
+	if err != nil || !rows.Next(){
+		return nil, err
+	}
+
+	var user model.User
+	if err := rows.Scan(
+		&user.ID,
+		&user.Username,
+		&user.Password,
+		&user.Name,
+		&user.Admin,
+	); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (d *defaultUserDao) FindUserByUsername(username string) (*model.User, error) {
+
+	rows, err := sq.Select(
+		"id",
+		"username",
+		"password",
+		"name",
+		"admin",
+	).
+		From("user").
+		Where(sq.Eq{"username": username}).
 		RunWith(d.db).
 		Query()
 
@@ -377,7 +413,7 @@ func (d *defaultUserDao) ResetPassword(userId int64) (model.Credentials, error){
 	}
 
 	// Generate password and hash with bcrypt
-	password := []byte(randomString(10))
+	password := []byte(utils.RandomString(10))
 	hashedPassword, err := bcrypt.GenerateFromPassword(password, 10)
 	if err != nil{
 		return model.Credentials{},err

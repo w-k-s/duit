@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
 	"github.com/RadhiFadlillah/duit/internal/model"
+	"github.com/RadhiFadlillah/duit/internal/backend/repo"
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -18,7 +18,7 @@ type AuthenticationRules func(user model.User, method, url string) bool
 // Authenticator is object to authenticate a http request.
 // It also handles login and logout.
 type Authenticator struct {
-	db             *sqlx.DB
+	userDao        repo.UserDao
 	sessionManager *SessionManager
 	rules          AuthenticationRules
 }
@@ -27,7 +27,7 @@ type Authenticator struct {
 func NewAuthenticator(db *sqlx.DB, rules AuthenticationRules) (*Authenticator, error) {
 	// Create authenticator
 	auth := new(Authenticator)
-	auth.db = db
+	auth.userDao = repo.NewUserDao(db.DB)
 	auth.sessionManager = NewSessionManager(3*time.Hour, 10*time.Minute)
 	auth.rules = rules
 
@@ -39,23 +39,9 @@ func NewAuthenticator(db *sqlx.DB, rules AuthenticationRules) (*Authenticator, e
 func (auth *Authenticator) Login(username, password string) (string, model.User, error) {
 	emptyUser := model.User{}
 
-	// Start transaction
-	// We only use it to fetch the data,
-	// so just rollback it later
-	tx := auth.db.MustBegin()
-	defer tx.Rollback()
 
 	// Prepare statements
-	stmtGetUser, err := tx.Preparex(`
-		SELECT id, username, name, password, admin
-		FROM user WHERE username = ?`)
-	if err != nil {
-		return "", emptyUser, fmt.Errorf("failed to prepare query: %w", err)
-	}
-
-	// Fetch user from database
-	var user model.User
-	err = stmtGetUser.Get(&user, username)
+	user, err := auth.userDao.FindUserByUsername(username)
 	if err != nil && err != sql.ErrNoRows {
 		return "", emptyUser, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -72,13 +58,13 @@ func (auth *Authenticator) Login(username, password string) (string, model.User,
 
 	// Save user to session manager
 	expTime := time.Duration(0)
-	session, err := auth.sessionManager.RegisterUser(user, expTime)
+	session, err := auth.sessionManager.RegisterUser(*user, expTime)
 	if err != nil {
 		return "", emptyUser, fmt.Errorf("failed to register user: %w", err)
 	}
 
 	user.Password = ""
-	return session, user, nil
+	return session, *user, nil
 }
 
 // Logout invalidates session

@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/julienschmidt/httprouter"
+	"github.com/RadhiFadlillah/duit/internal/backend/utils"
 	"net/http"
 )
 
@@ -11,7 +12,7 @@ func (h *Handler) SelectCategories(w http.ResponseWriter, r *http.Request, ps ht
 	h.auth.MustAuthenticateUser(r)
 
 	// Get URL parameter
-	accountID := strToInt(r.URL.Query().Get("account"))
+	accountID := utils.StrToInt(r.URL.Query().Get("account"))
 
 	categories, err := h.entryDao.Categories(int64(accountID))
 	checkError(err)

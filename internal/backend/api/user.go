@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-
+	"github.com/RadhiFadlillah/duit/internal/backend/utils"
 	"github.com/RadhiFadlillah/duit/internal/model"
 	"github.com/julienschmidt/httprouter"
 	"sort"
@@ -44,7 +44,7 @@ func (h *Handler) InsertUser(w http.ResponseWriter, r *http.Request, ps httprout
 	}
 
 	if user.Password == "" {
-		user.Password = randomString(10)
+		user.Password = utils.RandomString(10)
 	}
 
 	// If admin already exists, make sure session still valid
