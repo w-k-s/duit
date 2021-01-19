@@ -1,91 +1,98 @@
 version: 2.1
 orbs:
-    node: circleci/node@2.0.1
-jobs: 
-    deploy_backend: 
-        docker:
-            - image: circleci/golang:1.13
+  node: circleci/node@2.0.1
 
-        steps: 
-            - checkout 
-            - node/install:
-                install-npm: true
-                node-version: latest
-      
-            - restore_cache: 
-                keys:
-                    - v1-pkg-cache
+parameters:
+  env:
+    type: string
+    # prod environment uses gzip which doesn't work with https.
+    default: "dev"
 
-            - run: 
-                name: "Fetch Dependencies"
-                command: go get 
-            
-            - run:
-                name: "Convert less -> css"
-                command: >
-                    sudo npm install less -g; find "$PWD" -name '*.less' | while read line; do
-                        REPLACE_EXT=`echo $line | sed "s|\.less|\.css|"`
-                        REPLACE_PATH=`echo $REPLACE_EXT | sed "s|\/less|\/css|"`
-                        echo "$line --> $REPLACE_PATH"
-                        (lessc "$line" "$REPLACE_PATH")
-                    done
-            
-            - run:
-                name: "min js"
-                command: >
-                    sudo npm install uglify-es -g;
-                    find "$PWD/internal/view" -name '*.js' | while read line; do
-                        if [[ $(basename "$line") == *.min.js ]]; then 
-                            continue;
-                        else 
-                            NEW_NAME=`echo $line | sed "s|\.js|\.min.js|"`
-                            echo "$line -> $NEW_NAME"
-                            (uglifyjs -o "$NEW_NAME" "$line")
-                        fi
-                    done
+jobs:
+  deploy_backend:
+    docker:
+      - image: circleci/golang:1.13
 
-            - run:
-                name: "Generate Go code"
-                command: "go generate -v -tags prod"
+    steps:
+      - checkout
+      - node/install:
+          install-npm: true
+          node-version: latest
 
-            - run: 
-                name: "Build New Binary"
-                command: CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o duit -tags prod main.go
+      - restore_cache:
+          keys:
+            - v1-pkg-cache
 
-            - save_cache: # Store cache in the /go/pkg directory
-                key: v1-pkg-cache
-                paths:
-                    - "/go/pkg"
+      - run:
+          name: "Fetch Dependencies"
+          command: go get
 
-            - run:
-                name: Stop Duit Service
-                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl stop duit.service"
-        
-            - run:
-                name: Secure copy app
-                command: scp -o StrictHostKeyChecking=no duit cicd@${SERVER_ADDRESS}:~/
-        
-            - run:
-                name: Run DB Migrations
-                command: echo "Run DB Migrations"
+      - run:
+          name: "Convert less -> css"
+          command: >
+            sudo npm install less -g; find "$PWD" -name '*.less' | while read line; do
+                REPLACE_EXT=`echo $line | sed "s|\.less|\.css|"`
+                REPLACE_PATH=`echo $REPLACE_EXT | sed "s|\/less|\/css|"`
+                echo "$line --> $REPLACE_PATH"
+                (lessc "$line" "$REPLACE_PATH")
+            done
 
-            - run:
-                name: Restart Duit Service
-                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl start duit.service"
-            
-            - run:
-                name: Enable Systemd on Duit
-                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl enable duit.service"
+      - run:
+          name: "min js"
+          command: >
+            sudo npm install uglify-es -g;
+            find "$PWD/internal/view" -name '*.js' | while read line; do
+                if [[ $(basename "$line") == *.min.js ]]; then 
+                    continue;
+                else 
+                    NEW_NAME=`echo $line | sed "s|\.js|\.min.js|"`
+                    echo "$line -> $NEW_NAME"
+                    (uglifyjs -o "$NEW_NAME" "$line")
+                fi
+            done
 
-            - run:
-                name: Check duit is running
-                command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl is-active --quiet duit.service"
+      - run:
+          name: "Generate Go code"
+          command: "go generate -v -tags << pipeline.parameters.env >>"
+
+      - run:
+          name: "Build New Binary"
+          command: CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o duit -tags << pipeline.parameters.env >> main.go
+
+      - save_cache: # Store cache in the /go/pkg directory
+          key: v1-pkg-cache
+          paths:
+            - "/go/pkg"
+
+      - run:
+          name: Stop Duit Service
+          command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl stop duit.service"
+
+      - run:
+          name: Secure copy app
+          command: scp -o StrictHostKeyChecking=no duit cicd@${SERVER_ADDRESS}:~/
+
+      - run:
+          name: Run DB Migrations
+          command: echo "Run DB Migrations"
+
+      - run:
+          name: Restart Duit Service
+          command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl start duit.service"
+
+      - run:
+          name: Enable Systemd on Duit
+          command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl enable duit.service"
+
+      - run:
+          name: Check duit is running
+          command: ssh -o StrictHostKeyChecking=no cicd@${SERVER_ADDRESS} "sudo systemctl is-active --quiet duit.service"
 
 workflows:
-    version: 2
-    deployment:
-        jobs:
-        - deploy_backend:
-            filters:
-                branches:
-                    only: deployment
+  version: 2
+  deployment:
+    jobs:
+      - deploy_backend:
+          filters:
+            branches:
+              only: deployment
