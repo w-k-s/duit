@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/shurcooL/vfsgen"
+	"github.com/w-k-s/vfsgen"
 )
 
 func main() {

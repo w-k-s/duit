@@ -5,8 +5,7 @@ orbs:
 parameters:
   env:
     type: string
-    # prod environment uses gzip which doesn't work with https.
-    default: "dev"
+    default: "prod"
 
 jobs:
   deploy_backend:
