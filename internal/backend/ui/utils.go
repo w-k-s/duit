@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 	fp "path/filepath"
-	"strconv"
+	_"strconv"
 	"strings"
 	"syscall"
 )
@@ -54,7 +54,7 @@ func serveAssets(w http.ResponseWriter, filePath string, etagRequest string) err
 
 	// Write response header
 	w.Header().Set("ETag", etag)
-	w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
+	//w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
 
 	if mimeType != "" {
 		w.Header().Set("Content-Type", mimeType)

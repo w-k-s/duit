@@ -1,6 +1,7 @@
 package api
 
 import (
+	"compress/gzip"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -10,7 +11,13 @@ import (
 )
 
 func encodeGzippedJSON(w io.Writer, val interface{}) error {
-	return json.NewEncoder(w).Encode(val)
+	gz := gzip.NewWriter(w)
+	err := json.NewEncoder(gz).Encode(val)
+	if err != nil {
+		return err
+	}
+
+	return gz.Close()
 }
 
 func checkError(err error) {
